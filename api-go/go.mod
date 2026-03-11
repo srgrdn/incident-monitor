@@ -1,3 +1,3 @@
-module gitlab.com/sgrudinin/incident-monitor/api-go
+module github.com/srgrdn/incident-monitor/api-go
 
 go 1.24

@@ -1,0 +1,82 @@
+name: CI Build and GitOps Update
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Run Go tests
+        run: |
+          cd api-go
+          go test ./...
+
+  test-worker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run Python checks
+        run: |
+          cd worker-py
+          pip install -r requirements.txt
+          python -m py_compile src/main.py
+
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: [test-api, test-worker]
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE_TAG: ${{ github.sha }}
+      API_IMAGE: ghcr.io/srgrdn/incident-monitor/api
+      WORKER_IMAGE: ghcr.io/srgrdn/incident-monitor/worker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build and push API image
+        run: |
+          docker build -t "$API_IMAGE:$IMAGE_TAG" -f api-go/Dockerfile api-go
+          docker push "$API_IMAGE:$IMAGE_TAG"
+      - name: Build and push worker image
+        run: |
+          docker build -t "$WORKER_IMAGE:$IMAGE_TAG" -f worker-py/Dockerfile worker-py
+          docker push "$WORKER_IMAGE:$IMAGE_TAG"
+
+  update-gitops:
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: ${{ secrets.GITOPS_PUSH_TOKEN != '' }}
+    env:
+      IMAGE_TAG: ${{ github.sha }}
+      GITOPS_PUSH_TOKEN: ${{ secrets.GITOPS_PUSH_TOKEN }}
+    steps:
+      - name: Update dev image tags in gitops repo
+        run: |
+          git config --global user.name "incident-monitor-bot"
+          git config --global user.email "incident-monitor-bot@users.noreply.github.com"
+          git clone "https://x-access-token:${GITOPS_PUSH_TOKEN}@github.com/srgrdn/incident-monitor-gitops.git" gitops
+          cd gitops
+          sed -i -E "s|(newTag: ).*|\\1${IMAGE_TAG}|g" apps/incident-monitor/overlays/dev/kustomization.yaml
+          git add apps/incident-monitor/overlays/dev/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "No changes in gitops overlay"
+            exit 0
+          fi
+          git commit -m "ci: update incident-monitor dev images to ${IMAGE_TAG}"
+          git push origin main
