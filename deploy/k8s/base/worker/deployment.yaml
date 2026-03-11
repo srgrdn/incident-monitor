@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: incident-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: incident-worker
+  template:
+    metadata:
+      labels:
+        app: incident-worker
+    spec:
+      containers:
+        - name: worker
+          image: registry.gitlab.com/sgrudinin/incident-monitor/worker:latest
+          env:
+            - name: API_URL
+              value: http://incident-api:8080
+            - name: INTERVAL_SECONDS
+              value: "30"

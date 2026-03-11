@@ -1,0 +1,22 @@
+stages:
+  - test
+  - build
+
+variables:
+  DOCKER_TLS_CERTDIR: ""
+
+# MVP placeholder pipeline
+api_test:
+  stage: test
+  image: golang:1.24
+  script:
+    - cd api-go
+    - go test ./...
+
+worker_test:
+  stage: test
+  image: python:3.12
+  script:
+    - cd worker-py
+    - pip install -r requirements.txt
+    - python -m py_compile src/main.py
