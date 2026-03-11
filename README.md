@@ -14,3 +14,9 @@
 2. GitLab CI собирает образы и пушит в GitLab Container Registry.
 3. CI обновляет теги образов в отдельном GitOps-репозитории.
 4. Argo CD синхронизирует кластер из GitOps-репозитория.
+
+## GitLab CI variables
+
+Нужно добавить переменную проекта:
+
+- `GITOPS_PUSH_TOKEN` — PAT/Project Access Token для `incident-monitor-gitops` с `write_repository`.
