@@ -5,6 +5,7 @@ stages:
 
 variables:
   DOCKER_TLS_CERTDIR: ""
+  DOCKER_HOST: tcp://docker:2375
   IMAGE_TAG: $CI_COMMIT_SHORT_SHA
   API_IMAGE: $CI_REGISTRY_IMAGE/api
   WORKER_IMAGE: $CI_REGISTRY_IMAGE/worker
@@ -71,4 +72,6 @@ update_gitops_dev_tag:
     - git push origin main
   needs: ["build_api", "build_worker"]
   rules:
+    - if: '$GITOPS_PUSH_TOKEN == null'
+      when: never
     - if: '$CI_COMMIT_BRANCH == "main"'
